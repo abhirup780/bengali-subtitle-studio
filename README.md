@@ -1,113 +1,115 @@
+<div align="center">
+
 # Bengali Subtitle Studio
 
-A Windows desktop application that converts Bengali audio or video into two production-ready subtitle files: corrected Bengali (`name_bn.srt`) and fluent English (`name_en.srt`). Built for accuracy-first workflows: every subtitle timestamp is derived from measured positions in the audio, never estimated.
+**Bengali audio in. Broadcast-quality Bengali + English subtitles out.**
 
-## Features
+A Windows desktop app that turns Bengali audio or video into two production-ready
+SRT files: corrected Bengali and fluent English, with timing measured from the
+audio itself, never estimated.
 
-- Single-window dark UI with drag-free workflow: pick a file, press Generate, get both SRT files
-- Speech to text with Google Chirp 3 through the OpenRouter API (swappable to Whisper and other models)
-- Two LLM passes: Bengali correction (spelling, punctuation, recognition fixes informed by full-transcript context) and natural English translation with per-cue length budgets
-- Professional subtitle standards enforced locally, without extra API calls
-- Built-in preview player: play, pause, click-to-seek, a live caption bar, and auto-centered highlighting of the active cue while the audio plays
-- Subtitle text is editable in place; save edits back to the file or copy the whole SRT to the clipboard
-- Open existing audio and subtitle sets for preview: select any one file and the matching set is detected automatically, always picking the latest version
-- Output versioning: existing subtitles are never overwritten, later runs produce `_v2`, `_v3`, and so on
-- Optional custom instruction applied to both LLM passes (censoring, casing, terminology), limited to 500 characters
-- API key stored encrypted with Windows DPAPI, bound to your Windows account; revealing it in the UI requires Windows Hello (fingerprint, face, or PIN) or your account password
-- UTF-8 SRT output with BOM, compatible with VLC, YouTube, Premiere Pro, DaVinci Resolve, and CapCut
+![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-0078D6?logo=windows&logoColor=white)
+![Python](https://img.shields.io/badge/python-3.10%2B-3776AB?logo=python&logoColor=white)
+![Dependencies](https://img.shields.io/badge/core%20deps-stdlib%20only-2ea44f)
+![License](https://img.shields.io/badge/license-MIT-blue)
 
-## How it works
+</div>
 
+---
+
+## ✨ Highlights
+
+- **One window, one button.** Pick a file, press Generate, get `name_bn.srt` and `name_en.srt`.
+- **Timing you can trust.** Every cue's start and end comes from measured speech boundaries in the audio. The LLMs never see a timestamp, and a final invariant check refuses to write files if timing drifts.
+- **Three-stage AI pipeline.** Google Chirp 3 speech recognition, a Bengali correction pass that uses full-transcript context to fix misheard names and brands, and a natural English translation with per-cue length budgets.
+- **Professional subtitle standards, enforced locally.** Line length, cue duration, reading speed, natural line breaks, speaker dashes. Zero extra API calls.
+- **Built-in preview player.** Play, pause, click-to-seek, a live caption bar, and the active cue highlighted and auto-centered in an editable SRT view. Fix a line, save, replay.
+- **Safe by default.** Output files are never overwritten (`_v2`, `_v3`, ...), and your API key is stored DPAPI-encrypted, revealed only after Windows Hello or your account password.
+
+## 🔬 How it works
+
+```mermaid
+flowchart LR
+    A[Media file] -->|FFmpeg| B[16 kHz FLAC]
+    B --> C[Pause detection<br/>3-pass silencedetect]
+    C --> D[Cue-sized chunks<br/>cut at real pauses]
+    D -->|4 parallel workers| E[Chirp 3 via OpenRouter]
+    E --> F[LLM pass 1<br/>Bengali correction]
+    F --> G[Standards enforcement<br/>local, token-free]
+    G --> H[LLM pass 2<br/>English translation]
+    H --> I[name_bn.srt<br/>name_en.srt]
 ```
-media file
-   |  FFmpeg: extract 16 kHz mono FLAC
-   v
-pause detection (3-pass ffmpeg silencedetect)
-   |  split into cue-sized chunks (1.2 to 6 s) cut at real pauses
-   v
-parallel transcription (Chirp 3 via OpenRouter, 4 workers)
-   |  chunk speech boundaries become cue timings, verbatim
-   v
-LLM pass 1: Bengali correction (text only, timing never leaves the app)
-   v
-local standards enforcement (line length, cue length, reading speed)
-   v
-LLM pass 2: English translation (identical cue timing, per-cue budgets)
-   v
-name_bn.srt + name_en.srt (+ raw transcript JSON for auditing)
-```
 
-Timing accuracy is the core design constraint:
+The audio is split at real detected pauses into chunks of 1.2 to 6 seconds, each transcribed separately. The chunk's measured speech boundaries become the subtitle timing, verbatim. If a model returns word-level timestamps (Whisper does), the app upgrades to word precision automatically. Text and timing travel separate roads: the LLM passes exchange text keyed by cue id only, so no model output can ever move a subtitle.
 
-- Cue start and end come from measured speech boundaries detected in the audio. The app never stretches, shifts, or invents timestamps.
-- The LLMs only ever see and return text keyed by cue id. Cue timing lives in the app, so no model output can alter it. A final invariant check refuses to write files if timing differs between the two languages.
-- If audio in a chunk is silence or music, it simply produces no subtitle.
+## 📏 Subtitle standards
 
-## Subtitle standards enforced
-
-All enforcement is local and costs no tokens:
+All enforced locally after correction, before translation, so both files stay cue-for-cue aligned:
 
 | Rule | Value |
 | --- | --- |
-| Maximum line length | 42 characters |
-| Maximum lines per subtitle | 2, with single lines preferred |
+| Line length | max 42 characters, max 2 lines, single line preferred |
 | Cue duration | 0.833 s to 7 s |
 | Reading speed | 17 chars/s Bengali, 20 chars/s English |
-| Gap between cues | at least 2 frames, or exactly contiguous |
+| Cue gap | at least 2 frames, or exactly contiguous |
 | Line breaks | at natural language boundaries |
+| Speaker changes | one speaker per line, leading dash |
 
-Long cues are split at word or punctuation boundaries with time divided proportionally to text length. Short cues merge into contiguous neighbours. Reading speed is relaxed by extending a cue into the following silence, never past the next cue. Lines do not end on articles, prepositions, or conjunctions (English and Bengali lists), never separate a number from its unit, and never break hyphenated pairs. Speaker changes detected by the correction pass are rendered one speaker per line with a leading dash.
+Long cues split at word and punctuation boundaries with time divided proportionally to text length. Short cues merge into contiguous neighbours. Reading speed is relaxed by extending a cue into the following silence, never past the next cue. Lines never end on an article, preposition, or conjunction (English and Bengali lists), never separate a number from its unit, and never break hyphenated pairs.
 
-## Requirements
+## 🚀 Quick start
 
-- Windows 10 or 11
-- [FFmpeg](https://ffmpeg.org/) on PATH (`winget install Gyan.FFmpeg`)
-- An [OpenRouter API key](https://openrouter.ai/keys)
-- Python 3.10 or newer to run from source (the packaged exe needs no Python)
+**Requirements:** Windows 10/11, [FFmpeg](https://ffmpeg.org/) on PATH (`winget install Gyan.FFmpeg`), an [OpenRouter API key](https://openrouter.ai/keys), and Python 3.10+ if running from source.
 
-The core application uses only the Python standard library. The optional Windows Hello prompt uses the `winrt` bridge packages:
-
-```
-pip install winrt-runtime winrt-Windows.Security.Credentials.UI winrt-Windows.Foundation
-```
-
-Without them the app still works and falls back to a Windows account password check.
-
-## Running from source
-
-```
+```powershell
+git clone https://github.com/abhirup780/bengali-subtitle-studio.git
+cd bengali-subtitle-studio
 py app.py
 ```
 
-1. Choose an audio or video file (mp3, wav, m4a, mp4, mkv, mov, flac, ogg, aac, webm). The output folder defaults to the same directory.
-2. Paste your OpenRouter API key (stored encrypted after the first run).
-3. Optionally add a custom instruction for the LLM passes.
-4. Press Generate subtitles and watch per-stage progress: extracting, transcribing, correcting, translating, saving.
-5. Review in the preview player, edit any line, and save.
+The core app is **pure standard library**. The optional Windows Hello prompt uses the WinRT bridge:
 
-## Building the executable
-
+```powershell
+pip install winrt-runtime winrt-Windows.Security.Credentials.UI winrt-Windows.Foundation
 ```
+
+Without it, the app falls back to a Windows account password check.
+
+**Workflow:**
+
+1. Choose an audio or video file (mp3, wav, m4a, mp4, mkv, mov, flac, ogg, aac, webm)
+2. Paste your OpenRouter API key once (stored encrypted)
+3. Optionally add a custom instruction for both LLM passes, e.g. mask profanity, fix a name's casing
+4. Generate, then review in the preview player, edit any line, save
+
+Already have subtitles? **Open preview** accepts any one file of a set (the media or either SRT) and auto-detects the rest, always choosing the latest version.
+
+## 📦 Building the executable
+
+```powershell
 pip install pyinstaller
 py -m PyInstaller --noconfirm --onefile --noconsole --icon app.ico --add-data "app.ico;." --collect-submodules winrt --collect-data winrt --name "Bengali Subtitle Studio" app.py
 ```
 
-The result is a single portable `dist/Bengali Subtitle Studio.exe`. Target machines only need FFmpeg on PATH.
+Produces a single portable `dist/Bengali Subtitle Studio.exe`. Target machines only need FFmpeg on PATH.
 
-## Configuration
+## ⚙️ Configuration
 
-Settings persist in `%APPDATA%\BengaliSubtitleStudio\config.json`:
+Stored in `%APPDATA%\BengaliSubtitleStudio\config.json`:
 
 | Setting | Default | Notes |
 | --- | --- | --- |
-| Speech to text model | `google/chirp-3` | Any model on OpenRouter's transcription endpoint |
-| LLM model | `google/gemini-3.1-flash-lite` | Any OpenRouter chat model |
-| Language | `bn-IN` | `bn-IN` or `bn-BD` |
-| API key | none | Stored DPAPI-encrypted, never in plain text |
+| Speech-to-text model | `google/chirp-3` | any model on OpenRouter's transcription endpoint |
+| LLM model | `google/gemini-3.1-flash-lite` | any OpenRouter chat model |
+| Language | `bn-IN` | or `bn-BD` |
+| API key | none | DPAPI-encrypted, bound to your Windows account |
 
-The output folder and custom instruction are per-run choices and reset on every launch.
+The output folder and custom instruction are per-run choices and reset on launch.
 
-## Architecture
+## 🏗️ Architecture
+
+<details>
+<summary>Module map (click to expand)</summary>
 
 ```
 app.py                      Tkinter UI, preview player, event loop
@@ -126,30 +128,29 @@ bnsrt/
   winauth.py                Windows Hello / password verification
   config.py                 Settings persistence
   providers/
-    base.py                 Transcription and LLM provider interfaces
+    base.py                 TranscriptionProvider / LlmProvider interfaces
     openrouter_stt.py       Chirp 3 and compatible transcription models
     openrouter_llm.py       OpenRouter chat models
 ```
 
-Providers are swappable: implement `TranscriptionProvider` or `LlmProvider` from `bnsrt/providers/base.py` and pass instances to `Pipeline`. If a transcription model returns word-level timestamps, the app automatically uses them at word precision instead of chunk boundaries.
+</details>
 
-## Error handling
+Providers are swappable: implement `TranscriptionProvider` or `LlmProvider` from `bnsrt/providers/base.py` and hand instances to `Pipeline`.
 
-- Transient API failures (429, 5xx, network) retry with exponential backoff
-- A single rejected chunk becomes an empty cue; authentication, quota, and rate-limit exhaustion abort the run with the provider's message
-- Malformed LLM batches are retried, then fall back safely: correction keeps the original text, translation retries line by line
-- Generation never overwrites existing output files
+**Error handling:** transient API failures retry with exponential backoff; a single rejected chunk becomes an empty cue while auth, quota, and rate-limit exhaustion abort loudly; malformed LLM batches retry, then fall back safely (correction keeps the original text, translation retries line by line).
 
-## Limitations
+## ⚠️ Limitations
 
-- Windows only (playback uses MCI, secrets use DPAPI, identity uses Windows Hello)
+- Windows only: playback uses MCI, secrets use DPAPI, identity uses Windows Hello
 - Subtitle timing is audio-derived; alignment to video shot cuts is out of scope
-- Not an SDH pipeline: no sound-effect captions or speaker diarization from the model
+- Not an SDH pipeline: no sound-effect captions, no speaker diarization from the model
 
-## License
+## 📄 License
 
 MIT. See [LICENSE](LICENSE).
 
-## Author
+<div align="center">
 
-Abhirup Sarkar
+Built by **Abhirup Sarkar**
+
+</div>
