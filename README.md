@@ -13,6 +13,8 @@ audio itself, never estimated.
 ![Dependencies](https://img.shields.io/badge/core%20deps-stdlib%20only-2ea44f)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
+<img src="screenshot.jpg" alt="Bengali Subtitle Studio" width="900">
+
 </div>
 
 ---
@@ -28,16 +30,23 @@ audio itself, never estimated.
 
 ## 🔬 How it works
 
-```mermaid
-flowchart LR
-    A[Media file] -->|FFmpeg| B[16 kHz FLAC]
-    B --> C[Pause detection<br/>3-pass silencedetect]
-    C --> D[Cue-sized chunks<br/>cut at real pauses]
-    D -->|4 parallel workers| E[Chirp 3 via OpenRouter]
-    E --> F[LLM pass 1<br/>Bengali correction]
-    F --> G[Standards enforcement<br/>local, token-free]
-    G --> H[LLM pass 2<br/>English translation]
-    H --> I[name_bn.srt<br/>name_en.srt]
+```
+media file
+   |  FFmpeg: extract 16 kHz mono FLAC
+   v
+pause detection (3-pass ffmpeg silencedetect)
+   |  split into cue-sized chunks (1.2 to 6 s) cut at real pauses
+   v
+parallel transcription (Chirp 3 via OpenRouter, 4 workers)
+   |  chunk speech boundaries become cue timings, verbatim
+   v
+LLM pass 1: Bengali correction (text only, timing never leaves the app)
+   v
+local standards enforcement (line length, cue length, reading speed)
+   v
+LLM pass 2: English translation (identical cue timing, per-cue budgets)
+   v
+name_bn.srt + name_en.srt (+ raw transcript JSON for auditing)
 ```
 
 The audio is split at real detected pauses into chunks of 1.2 to 6 seconds, each transcribed separately. The chunk's measured speech boundaries become the subtitle timing, verbatim. If a model returns word-level timestamps (Whisper does), the app upgrades to word precision automatically. Text and timing travel separate roads: the LLM passes exchange text keyed by cue id only, so no model output can ever move a subtitle.
