@@ -3,12 +3,27 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 from .errors import PipelineError
 _CREATE_NO_WINDOW = 134217728 if os.name == 'nt' else 0
+_ffmpeg_path: str | None = None
 def find_ffmpeg() -> str:
+    global _ffmpeg_path
+    if _ffmpeg_path:
+        return _ffmpeg_path
+    candidates = []
+    if getattr(sys, 'frozen', False):
+        bundle = getattr(sys, '_MEIPASS', os.path.dirname(sys.executable))
+        candidates.append(os.path.join(bundle, 'ffmpeg.exe'))
+        candidates.append(os.path.join(os.path.dirname(sys.executable), 'ffmpeg.exe'))
+    for candidate in candidates:
+        if os.path.isfile(candidate):
+            _ffmpeg_path = candidate
+            return candidate
     path = shutil.which('ffmpeg')
     if not path:
         raise PipelineError('FFmpeg was not found on PATH. Install it and restart the app.\nOn Windows:  winget install Gyan.FFmpeg')
+    _ffmpeg_path = path
     return path
 def extract_audio(input_path: str, out_path: str) -> str:
     ffmpeg = find_ffmpeg()
@@ -37,6 +52,11 @@ def probe_duration(input_path: str) -> float | None:
         except (OSError, ValueError):
             pass
     try:
+        proc = subprocess.run([find_ffmpeg(), '-hide_banner', '-i', input_path], capture_output=True, text=True, encoding='utf-8', errors='replace', creationflags=_CREATE_NO_WINDOW)
+        match = re.search('Duration:\\s*(\\d+):(\\d+):(\\d+(?:\\.\\d+)?)', proc.stderr or '')
+        if match:
+            h, m, s = match.groups()
+            return int(h) * 3600 + int(m) * 60 + float(s)
         proc = subprocess.run([find_ffmpeg(), '-hide_banner', '-i', input_path, '-f', 'null', '-'], capture_output=True, text=True, encoding='utf-8', errors='replace', creationflags=_CREATE_NO_WINDOW)
         times = re.findall('time=(\\d+):(\\d+):(\\d+(?:\\.\\d+)?)', proc.stderr or '')
         if times:

@@ -59,7 +59,15 @@ Long cues split at word and punctuation boundaries with time divided proportiona
 
 ## 🚀 Quick start
 
-**Requirements:** Windows 10/11, [FFmpeg](https://ffmpeg.org/) on PATH (`winget install Gyan.FFmpeg`), an [OpenRouter API key](https://openrouter.ai/keys), and Python 3.10+ if running from source.
+### Option 1: download the exe (nothing to install)
+
+Grab `Bengali Subtitle Studio.exe` from [Releases](https://github.com/abhirup780/bengali-subtitle-studio/releases). FFmpeg is bundled inside; the only thing you need is an [OpenRouter API key](https://openrouter.ai/keys).
+
+> Windows SmartScreen may warn on first run because the binary is unsigned. Choose "More info", then "Run anyway".
+
+### Option 2: run from source
+
+**Requirements:** Windows 10/11, Python 3.10+, [FFmpeg](https://ffmpeg.org/) on PATH (`winget install Gyan.FFmpeg`), an [OpenRouter API key](https://openrouter.ai/keys).
 
 ```powershell
 git clone https://github.com/abhirup780/bengali-subtitle-studio.git
@@ -88,10 +96,10 @@ Already have subtitles? **Open preview** accepts any one file of a set (the medi
 
 ```powershell
 pip install pyinstaller
-py -m PyInstaller --noconfirm --onefile --noconsole --icon app.ico --add-data "app.ico;." --collect-submodules winrt --collect-data winrt --name "Bengali Subtitle Studio" app.py
+py -m PyInstaller --noconfirm --onefile --noconsole --icon app.ico --add-data "app.ico;." --add-binary "ffmpeg_bin\ffmpeg.exe;." --collect-submodules winrt --collect-data winrt --name "Bengali Subtitle Studio" app.py
 ```
 
-Produces a single portable `dist/Bengali Subtitle Studio.exe`. Target machines only need FFmpeg on PATH.
+Place an `ffmpeg.exe` in `ffmpeg_bin/` first (any static Windows build) to bundle it; omit the `--add-binary` flag to build a smaller exe that uses FFmpeg from PATH instead. The result is a single portable `dist/Bengali Subtitle Studio.exe`.
 
 ## ⚙️ Configuration
 
@@ -148,6 +156,8 @@ Providers are swappable: implement `TranscriptionProvider` or `LlmProvider` from
 ## 📄 License
 
 MIT. See [LICENSE](LICENSE).
+
+The packaged executable bundles [FFmpeg](https://ffmpeg.org/) (gyan.dev build, GPLv3) as a separate invoked program; FFmpeg source is available at ffmpeg.org.
 
 <div align="center">
 
